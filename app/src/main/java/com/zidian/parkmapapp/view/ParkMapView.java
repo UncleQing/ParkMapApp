@@ -7,6 +7,7 @@ import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.support.v7.widget.AppCompatImageView;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -25,7 +26,7 @@ import com.zidian.parkmapapp.R;
 
 import java.util.List;
 
-public class ParkMapView extends FrameLayout {
+public class ParkMapView extends FrameLayout implements ViewTreeObserver.OnGlobalLayoutListener, ScaleGestureDetector.OnScaleGestureListener {
 
     private static final String TAG = "ParkMapView";
     //最小倍数
@@ -48,7 +49,6 @@ public class ParkMapView extends FrameLayout {
     private Matrix scaleMatrix;
     private boolean isAutoScaling;
     private boolean isPicLoaded;
-    private RectF rectF;
 
     private OnMarkerClickListner onMarkerClickListner;
     //缩放手势
@@ -89,62 +89,14 @@ public class ParkMapView extends FrameLayout {
         midScale = 2.0f;
 
         LayoutParams params = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        mapView = new ImageView(context);
-        mapView.setBackgroundResource(mapRes);
+        mapView = new AppCompatImageView(context);
+        mapView.setImageResource(mapRes);
         mapView.setLayoutParams(params);
         addView(mapView);
 
         scaleMatrix = new Matrix();
 
-        rectF = new RectF();
-        rectF.set(0, 0, mapWidth, mapHeight);
-
-        scaleGestureDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.OnScaleGestureListener() {
-            @Override
-            public boolean onScale(ScaleGestureDetector detector) {
-                return true;
-            }
-
-            @Override
-            public boolean onScaleBegin(ScaleGestureDetector detector) {
-                float scaleFactor = detector.getScaleFactor();
-                //当前图片已缩放的值（如果onScale第一次被调用，scale就是自适应后的缩放值：defalutScale）
-                float scale = getDrawableScale();
-                //当前缩放值在最大放大值以内且手势检测缩放因子为缩小手势(小于1)，或当前缩放值在最小缩小值以内且缩放因子为放大手势，允许缩放
-                if (scale <= maxScale && scaleFactor < 1 || scale >= minScale && scaleFactor > 1) {
-                    //进一步考虑即将缩小后的缩放比例(scale*scaleFactor)低于规定minScale-maxScale范围的最小值minScale
-                    if (scale * scaleFactor < minScale && scaleFactor < 1) {
-                        //强制锁定缩小后缩放比例为minScale（scale*scaleFactor=minScale）
-                        scaleFactor = minScale / scale;
-                    }
-                    //进一步考虑即将放大后的缩放比例(scale*scaleFactor)高于规定minScale-maxScale范围的最大值maxScale
-                    if (scale * scaleFactor > maxScale && scaleFactor > 1) {
-                        //强制锁定放大后缩放比例为maxScale（scale*scaleFactor=maxScale）
-                        scaleFactor = maxScale / scale;
-                    }
-                    //设定缩放值和缩放位置，这里缩放位置便是手势焦点的位置
-                    scaleMatrix.postScale(scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
-
-                    //检查即将缩放后造成的留空隙和图片不居中的问题，及时调整缩放参数
-                    checkBoderAndCenter();
-
-                    //执行缩放
-                    mapView.setImageMatrix(scaleMatrix);
-                    onChanged(getMatrixRect());
-                }
-                return true;
-            }
-
-            @Override
-            public void onScaleEnd(ScaleGestureDetector detector) {
-                //当前缩放值
-                float scale = getDrawableScale();
-                //当前缩放值小于自适应缩放缩放比例，即图片小于View宽高
-                if (scale < defalutScale) {
-                    post(new AutoScaleTask(defalutScale, getWidth() * 1f / 2, getHeight() * 1f));
-                }
-            }
-        });
+        scaleGestureDetector = new ScaleGestureDetector(context, this);
 
         gestureDetector = new GestureDetector(context, new SimpleOnGestureListener() {
             @Override
@@ -205,6 +157,110 @@ public class ParkMapView extends FrameLayout {
         this.onMarkerClickListner = l;
     }
 
+    @Override
+    public boolean onScale(ScaleGestureDetector detector) {
+        float scaleFactor = detector.getScaleFactor();
+        //当前图片已缩放的值（如果onScale第一次被调用，scale就是自适应后的缩放值：defalutScale）
+        float scale = getDrawableScale();
+        //当前缩放值在最大放大值以内且手势检测缩放因子为缩小手势(小于1)，或当前缩放值在最小缩小值以内且缩放因子为放大手势，允许缩放
+        if (scale <= maxScale && scaleFactor < 1 || scale >= minScale && scaleFactor > 1) {
+            //进一步考虑即将缩小后的缩放比例(scale*scaleFactor)低于规定minScale-maxScale范围的最小值minScale
+            if (scale * scaleFactor < minScale && scaleFactor < 1) {
+                //强制锁定缩小后缩放比例为minScale（scale*scaleFactor=minScale）
+                scaleFactor = minScale / scale;
+            }
+            //进一步考虑即将放大后的缩放比例(scale*scaleFactor)高于规定minScale-maxScale范围的最大值maxScale
+            if (scale * scaleFactor > maxScale && scaleFactor > 1) {
+                //强制锁定放大后缩放比例为maxScale（scale*scaleFactor=maxScale）
+                scaleFactor = maxScale / scale;
+            }
+            //设定缩放值和缩放位置，这里缩放位置便是手势焦点的位置
+            scaleMatrix.postScale(scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
+
+            //检查即将缩放后造成的留空隙和图片不居中的问题，及时调整缩放参数
+            checkBoderAndCenter();
+
+            //执行缩放
+            mapView.setImageMatrix(scaleMatrix);
+            onChanged(getMatrixRect());
+        }
+        return true;
+    }
+
+    @Override
+    public boolean onScaleBegin(ScaleGestureDetector detector) {
+        return true;
+    }
+
+    @Override
+    public void onScaleEnd(ScaleGestureDetector detector) {
+        //当前缩放值
+        float scale = getDrawableScale();
+        //当前缩放值小于自适应缩放缩放比例，即图片小于View宽高
+        if (scale < defalutScale) {
+            post(new AutoScaleTask(defalutScale, getWidth() * 1f / 2, getHeight() * 1f));
+        }
+    }
+
+    @Override
+    public void onGlobalLayout() {
+        if (!isPicLoaded) {
+            Drawable drawable = mapView.getDrawable();
+
+            if (null == drawable) {//图片不存在就继续监听
+                return;
+            }
+
+            mapWidth = drawable.getIntrinsicWidth();
+            mapHeight = drawable.getIntrinsicHeight();
+
+            isPicLoaded = true;//图片存在，已加载完成，停止监听
+            //获取图片固有的宽高（不是指本身属性:分辨率，因为android系统在加载显示图片前可能对其压缩）
+            int iWidth = drawable.getIntrinsicWidth();
+            int iHeight = drawable.getIntrinsicHeight();
+
+            //获取当前View(ImageView)的宽高，即父View给予的宽高
+            int width = getWidth();
+            int height = getHeight();
+
+            //TODO log
+            Log.e("TAG", "mapWidth:" + mapWidth);
+            Log.e("TAG", "mapHeight:" + mapHeight);
+            Log.e("TAG", "width:" + width);
+            Log.e("TAG", "height:" + height);
+
+            //调整默认缩放比例，使初始刚好显示整张图片的大小
+            if (iWidth >= width && iHeight <= height) {
+                defalutScale = width * 1f / iWidth;
+            } else if (iWidth < width && iHeight > height) {
+                defalutScale = height * 1f / iHeight;
+            } else {
+                defalutScale = Math.max(width * 1f / iWidth, height * 1f / iHeight);
+            }
+
+            //先将图片移动到View中心位置
+            scaleMatrix.postTranslate((width - iWidth) * 1f / 2, (height - iHeight) * 1f / 2);
+            //再对图片从View的中心点缩放
+            scaleMatrix.postScale(defalutScale, defalutScale, width * 1f / 2, height * 1f / 2);
+            //执行偏移和缩放
+            mapView.setImageMatrix(scaleMatrix);
+            onChanged(getMatrixRect());
+
+            //根据当前图片的缩放情况，重新调整图片的最大最小缩放值
+            maxScale *= defalutScale;
+            midScale *= defalutScale;
+            minScale *= defalutScale;
+
+            //TODO log
+            Log.e("TAG", "defalutScale:" + defalutScale);
+            Log.e("TAG", "maxScale:" + maxScale);
+            Log.e("TAG", "midScale:" + midScale);
+            Log.e("TAG", "minScale:" + minScale);
+            Log.e("TAG", "scale:" + getDrawableScale());
+
+        }
+    }
+
     public interface OnMarkerClickListner {
         void onClick(View view, int position);
     }
@@ -259,7 +315,7 @@ public class ParkMapView extends FrameLayout {
 
         @Override
         public void run() {
-            //循环放大或缩小，若放大到2倍则连续调用大约12次
+            //循环放大或缩小
             scaleMatrix.postScale(tmpScale, tmpScale, x, y);
             //检查即将缩放后造成的留空隙和图片不居中的问题，及时调整缩放参数
             checkBoderAndCenter();
@@ -267,6 +323,7 @@ public class ParkMapView extends FrameLayout {
             onChanged(getMatrixRect());
             //当前缩放值
             float scale = getDrawableScale();
+            Log.e("TAG", "scale:" + scale);
             //如果tmpScale>1即放大任务状态，且当前缩放值还是小于目标缩放值或
             // tmpScale<1即缩小任务状态，且当前缩放值还是大于目标缩放值就继续执行缩放任务
             if (tmpScale > 1 && scale < targetScale || scale > targetScale && tmpScale < 1) {
@@ -282,60 +339,60 @@ public class ParkMapView extends FrameLayout {
         }
     }
 
-    int downX;
-    int downY;
-    int pointerCount;
+    int lastX;
+    int lastY;
+    int lastCount;
 
     private void moveByTouchEvent(MotionEvent event) {
         switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                pointerCount = event.getPointerCount();
-                for (int i = 0; i < pointerCount; i++) {
-                    downX += event.getX(i);
-                    downY += event.getY(i);
-                }
-                //所有触点的中点
-                downX /= pointerCount;
-                downY /= pointerCount;
-                break;
-            case MotionEvent.ACTION_MOVE:
+            case MotionEvent.ACTION_MOVE://手势移动
                 RectF rect = getMatrixRect();
                 if (rect.width() <= getWidth() && rect.height() <= getHeight()) {
                     return;
                 }
-
-                int moveX = 0;
-                int moveY = 0;
+                int x = 0;
+                int y = 0;
+                int pointerCount = event.getPointerCount();
                 for (int i = 0; i < pointerCount; i++) {
-                    moveX += event.getX(i);
-                    moveY += event.getY(i);
+                    x += event.getX(i);
+                    y += event.getY(i);
                 }
-                //所有触点的中点
-                moveX /= pointerCount;
-                moveY /= pointerCount;
+                //所有触点中点
+                x /= pointerCount;
+                y /= pointerCount;
 
-                int deltaX = moveX - downX;
-                int deltaY = moveY - downY;
+                //重置触点数
+                if (lastCount != pointerCount) {
+                    lastX = x;
+                    lastY = y;
+                    lastCount = pointerCount;
+                }
+                int deltaX = x - lastX;
+                int deltaY = y - lastY;
 
                 if (isCanDrag(deltaX, deltaY)) {
+
+                    //横向不用移动
                     if (rect.width() <= getWidth()) {
                         deltaX = 0;
                     }
-
+                    //纵向不用移动
                     if (rect.height() <= getHeight()) {
                         deltaY = 0;
                     }
+
                     scaleMatrix.postTranslate(deltaX, deltaY);
                     checkBoderAndCenter();
                     mapView.setImageMatrix(scaleMatrix);
                     onChanged(getMatrixRect());
                 }
+
+                lastX = x;
+                lastY = y;
                 break;
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP:
-                pointerCount = 0;
-                downX = 0;
-                downY = 0;
+                lastCount = 0;
                 break;
         }
     }
@@ -388,13 +445,17 @@ public class ParkMapView extends FrameLayout {
             //计算需要移动到Y方向View中心的距离
             deltaY = height * 1f / 2 - rect.bottom + rect.height() * 1f / 2;
         }
+
         scaleMatrix.postTranslate(deltaX, deltaY);
     }
 
     //根据缩放矩阵获取RectF
     private RectF getMatrixRect() {
-        scaleMatrix.mapRect(rectF);
-        return rectF;
+        RectF rect = new RectF();
+        rect.set(0, 0, mapWidth, mapHeight);
+        scaleMatrix.mapRect(rect);
+
+        return rect;
     }
 
 
@@ -421,63 +482,17 @@ public class ParkMapView extends FrameLayout {
         return Math.sqrt(deltaX * deltaX + deltaY * deltaY) >= ViewConfiguration.get(context).getScaledTouchSlop();
     }
 
-    ViewTreeObserver.OnGlobalLayoutListener onGlobalLayoutListener = new ViewTreeObserver.OnGlobalLayoutListener() {
-        @Override
-        public void onGlobalLayout() {
-            if (!isPicLoaded) {
-                Drawable drawable = mapView.getDrawable();
-
-                if (null == drawable) {//图片不存在就继续监听
-                    return;
-                }
-                mapWidth = drawable.getIntrinsicWidth();
-                mapHeight = drawable.getIntrinsicHeight();
-
-                isPicLoaded = true;//图片存在，已加载完成，停止监听
-                //获取图片固有的宽高（不是指本身属性:分辨率，因为android系统在加载显示图片前可能对其压缩）
-                int iWidth = drawable.getIntrinsicWidth();
-                int iHeight = drawable.getIntrinsicHeight();
-
-                //获取当前View(ImageView)的宽高，即父View给予的宽高
-                int width = getWidth();
-                int height = getHeight();
-
-                //调整默认缩放比例，使初始刚好显示整张图片的大小
-                if (iWidth >= width && iHeight <= height) {
-                    defalutScale = width * 1f / iWidth;
-                } else if (iWidth < width && iHeight > height) {
-                    defalutScale = height * 1f / iHeight;
-                } else {
-                    defalutScale = Math.max(width * 1f / iWidth, height * 1f / iHeight);
-                }
-
-                //先将图片移动到View中心位置
-                scaleMatrix.postTranslate((width - iWidth) * 1f / 2, (height - iHeight) * 1f / 2);
-                //再对图片从View的中心点缩放
-                scaleMatrix.postScale(defalutScale, defalutScale, width * 1f / 2, height * 1f / 2);
-                //执行偏移和缩放
-                mapView.setImageMatrix(scaleMatrix);
-                onChanged(getMatrixRect());
-
-                //根据当前图片的缩放情况，重新调整图片的最大最小缩放值
-                maxScale *= defalutScale;
-                midScale *= defalutScale;
-                minScale *= defalutScale;
-            }
-        }
-    };
-
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         //view加载完成的初始化
-        getViewTreeObserver().addOnGlobalLayoutListener(onGlobalLayoutListener);
+        getViewTreeObserver().addOnGlobalLayoutListener(this);
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        getViewTreeObserver().removeOnGlobalLayoutListener(onGlobalLayoutListener);
+        getViewTreeObserver().removeOnGlobalLayoutListener(this);
     }
 
 }
