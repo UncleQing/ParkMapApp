@@ -22,5 +22,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void testMap() {
         parkMapView.testMarker();
+        parkMapView.setPaths(null);
+        parkMapView.updateLocalPosition(-1, -1, -1);
+        parkMapView.setSpaceClickListner(new ParkMapView.OnSpaceClickListenner() {
+            @Override
+            public void onClick(int id) {
+
+            }
+        });
+        parkMapView.showObstacle();
+        parkMapView.hideObstacle();
+
     }
 }

@@ -170,15 +170,18 @@ public class ParkMapView extends FrameLayout implements ViewTreeObserver.OnGloba
         spaceCoordinates.add(parkSpaceBean5);
     }
 
+    /**
+     * 测试marker
+     */
     public void testMarker(){
         List<MarkerBean> markerBeanList = new ArrayList<>();
 
-        MarkerBean markerBean3 = new MarkerBean();
-        markerBean3.setCoordinate(new Coordinate(0.306f, 0.127f));
-        markerBean3.setType(TYPE_CAR);
-        markerBean3.setRotation(0f);
-        markerBean3.setId(1);
-        markerBeanList.add(markerBean3);
+        MarkerBean markerBean = new MarkerBean();
+        markerBean.setCoordinate(new Coordinate(0.306f, 0.127f));
+        markerBean.setType(TYPE_CAR);
+        markerBean.setRotation(0f);
+        markerBean.setId(1);
+        markerBeanList.add(markerBean);
 
         setMarkers(markerBeanList);
         invalidate();
